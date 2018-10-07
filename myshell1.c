@@ -79,7 +79,7 @@ int super_exec(char* argv[], int fd_in, int last_fd_out)
 
 	/// Don't quit before this proc exit
 	waitpid(this_pid, NULL, 1);
-	//usleep(10000);
+	usleep(10000);
 	return 0;
 }
 
