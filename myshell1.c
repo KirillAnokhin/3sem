@@ -4,6 +4,8 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <assert.h>
+#include <ctype.h>
 
 #define BUF_SIZE 512
 
@@ -34,29 +36,38 @@ int fork_exec(char *argv[], int fd_in, int fd_out)
 			close(fd_out);
 		}
 
-		execvp(argv[0], argv);
+		if (execvp(argv[0], argv) == -1) 
+		{
+			perror("Wrong comand");
+			exit(EXIT_FAILURE);
+		}
 	}
 	return pid;
 }
 
+
 int super_exec(char* argv[], int fd_in, int last_fd_out)
 {
-	if (argv == NULL || *argv == NULL)
+	if (argv == NULL || *argv == NULL) {
+		fprintf(stderr, "Wrong command\n");
 		return -1;
-
+	}
+	
 	/// Find stick
 	char** ptr = find_stick(argv);
+	int tmp = 0;
+
 	/// If there are no stick
 	/// we can just exec this argv
 	pid_t this_pid;
 	if (*ptr == NULL)
        	{
 		this_pid = fork_exec(argv, fd_in, last_fd_out);
-		if (this_pid == -1)
+		if (this_pid == -1) {
+			perror("fork_exec");
 			return -1;
-		/// Don't quit before this proc exit
-		waitpid(this_pid, NULL, 1);
-		usleep(10000);
+		}
+		while (wait(NULL) != -1);
 		return 0;
 	}
 	
@@ -70,17 +81,97 @@ int super_exec(char* argv[], int fd_in, int last_fd_out)
 
 	/// execute this argv
 	this_pid = fork_exec(argv, fd_in, pipe_fd[1]);
-	if (this_pid == -1)
+	if (this_pid == -1) {
+		perror("fork_exec");
+		close(pipe_fd[0]);
+		close(pipe_fd[1]);
 		return -1;
+	}
+	close(pipe_fd[1]);
 
 	/// execute next argv
 	if (super_exec(ptr, pipe_fd[0], last_fd_out) == -1)
+	{
+		close(pipe_fd[0]);
 	       	return -1;
+	}
+	close(pipe_fd[0]);
 
-	/// Don't quit before this proc exit
-	waitpid(this_pid, NULL, 1);
-	usleep(10000);
 	return 0;
+}
+
+/*
+int exec_args(char ** argv, int ncom)
+{
+	if(argv == NULL || *argv == NULL)
+		assert(0);
+
+	int pid = 0;
+	int tmp = 0;
+	for(int i = 0; i < ncom; i++)
+	{
+		if(strcmp(argv[i], "|") == 0)
+			printf("YA EBY SOBAK\n");
+		pid = fork();
+		if(pid == 0)
+		{
+			execvp(argv[i], argv);
+		}
+		tmp = waitpid(pid, NULL, 1);
+	}
+	return 0;
+}
+*/
+
+int lexer(char* str, char*** arr_p)
+{
+	*arr_p = calloc(100, sizeof(char*));
+	int cur_arr = 0;
+	char* beg;
+	char* cur;
+	char* tmp;
+	cur = str;
+	beg = cur;
+	while(1)
+	{
+		
+		while(isspace(*beg) && *beg != '\0')
+			beg++;
+		cur = beg;
+		
+		while(!isspace(*cur) && (*cur != '|') && (*cur != '\0'))
+			cur++;
+
+		if (beg != cur)
+		{
+
+			tmp = calloc((size_t)(cur - beg) + 1, sizeof(char));
+			assert(tmp);
+			memcpy(tmp, beg, (size_t)(cur - beg));
+			(*arr_p)[cur_arr++] = tmp;
+			beg = cur;
+			cur++;
+			//beg = cur;
+		}
+
+		else if (*cur == '|')
+		{
+			//printf("i am here\n");
+			tmp = calloc(2, sizeof(char));
+			memcpy(tmp, beg, 1);
+			(*arr_p)[cur_arr++] = tmp;
+			cur++;
+			beg = cur;
+		}
+		else if(beg == cur)
+			break;
+		else if(*cur == '\0')
+			break;
+		
+
+		}
+
+	return cur_arr;
 }
 
 
@@ -91,35 +182,36 @@ int main()
 		printf("user@linux:$ ");
 		///all information in buf
 		char buf[BUF_SIZE] = {};
-		char* comands[BUF_SIZE] = {};
+		char** comands;
 
 		fgets(buf, BUF_SIZE, stdin);
 
-		char* token;
-		char* saveptr;
-		char* str = buf;
-		int i = 0;
+		int ncomands = 0;
 
-		for(str = buf, i = 0; ; i++, str = NULL)
+		ncomands = lexer(buf, &comands);
+
+		//printf("ncomands = %d\n", ncomands);
+	
+		for(int i = 0; i < ncomands; i++)
 		{
-			token = strtok_r(str, " \n\v\t", &saveptr);
-			comands[i] = token;
+			//printf("%s\n", comands[i]);
 
-			if(token == NULL)
-				break;
-		
 			if(strcmp(comands[i], "exit") == 0)
 				return 0;
-
-			//printf("%d: %s\n", i, comands[i]);	
-		}
-
-
-		if(super_exec(comands, STDIN_FILENO, STDOUT_FILENO) == -1)
+			
+			if(comands[i] == NULL)
+				return 0;
+			
+		}		
+		if(*comands && super_exec(comands, STDIN_FILENO, STDOUT_FILENO) == -1)
 	       	{
 			perror("super_exec");
-			return 0;
 		}
+		
+		//	exec_args(comands, ncomands);
+		//fsync(STDOUT_FILENO);
+		//fflush(stdout);
+		//fdatasync(STDOUT_FILENO);	
 	}	
 	
 	return 0;
