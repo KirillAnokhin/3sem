@@ -48,7 +48,8 @@ int fork_exec(char *argv[], int fd_in, int fd_out)
 
 int super_exec(char* argv[], int fd_in, int last_fd_out)
 {
-	if (argv == NULL || *argv == NULL) {
+	if (argv == NULL || *argv == NULL)
+       	{
 		fprintf(stderr, "Wrong command\n");
 		return -1;
 	}
@@ -63,7 +64,8 @@ int super_exec(char* argv[], int fd_in, int last_fd_out)
 	if (*ptr == NULL)
        	{
 		this_pid = fork_exec(argv, fd_in, last_fd_out);
-		if (this_pid == -1) {
+		if (this_pid == -1)
+	       	{
 			perror("fork_exec");
 			return -1;
 		}
@@ -81,7 +83,8 @@ int super_exec(char* argv[], int fd_in, int last_fd_out)
 
 	/// execute this argv
 	this_pid = fork_exec(argv, fd_in, pipe_fd[1]);
-	if (this_pid == -1) {
+	if (this_pid == -1)
+       	{
 		perror("fork_exec");
 		close(pipe_fd[0]);
 		close(pipe_fd[1]);
@@ -155,16 +158,15 @@ int lexer(char* str, char*** arr_p)
 
 int main()
 {
+	char buf[BUF_SIZE] = {};
+	char** comands;
+	int ncomands = 0;
 	while(1)
 	{
 		printf("user@linux:$ ");
 		///all information in buf
-		char buf[BUF_SIZE] = {};
-		char** comands;
 
 		fgets(buf, BUF_SIZE, stdin);
-
-		int ncomands = 0;
 
 		ncomands = lexer(buf, &comands);
 
