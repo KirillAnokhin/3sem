@@ -100,28 +100,6 @@ int super_exec(char* argv[], int fd_in, int last_fd_out)
 	return 0;
 }
 
-/*
-int exec_args(char ** argv, int ncom)
-{
-	if(argv == NULL || *argv == NULL)
-		assert(0);
-
-	int pid = 0;
-	int tmp = 0;
-	for(int i = 0; i < ncom; i++)
-	{
-		if(strcmp(argv[i], "|") == 0)
-			printf("YA EBY SOBAK\n");
-		pid = fork();
-		if(pid == 0)
-		{
-			execvp(argv[i], argv);
-		}
-		tmp = waitpid(pid, NULL, 1);
-	}
-	return 0;
-}
-*/
 
 int lexer(char* str, char*** arr_p)
 {
@@ -151,7 +129,7 @@ int lexer(char* str, char*** arr_p)
 			(*arr_p)[cur_arr++] = tmp;
 			beg = cur;
 			cur++;
-			//beg = cur;
+
 		}
 
 		else if (*cur == '|')
@@ -208,10 +186,6 @@ int main()
 			perror("super_exec");
 		}
 		
-		//	exec_args(comands, ncomands);
-		//fsync(STDOUT_FILENO);
-		//fflush(stdout);
-		//fdatasync(STDOUT_FILENO);	
 	}	
 	
 	return 0;
