@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <assert.h>
 #include <ctype.h>
+#include <malloc.h>
 
 #define BUF_SIZE 512
 
@@ -39,7 +40,8 @@ int fork_exec(char *argv[], int fd_in, int fd_out)
 		if (execvp(argv[0], argv) == -1) 
 		{
 			perror("Wrong comand");
-			exit(EXIT_FAILURE);
+			// This is child
+			return -2;
 		}
 	}
 	return pid;
@@ -69,6 +71,8 @@ int super_exec(char* argv[], int fd_in, int last_fd_out)
 			perror("fork_exec");
 			return -1;
 		}
+		if (this_pid == -2)
+			return -2;
 		while (wait(NULL) != -1);
 		return 0;
 	}
@@ -114,33 +118,27 @@ int lexer(char* str, char*** arr_p)
 	cur = str;
 	beg = cur;
 	while(1)
-	{
-		
+	{	
 		while(isspace(*beg) && *beg != '\0')
 			beg++;
 		cur = beg;
-		
 		while(!isspace(*cur) && (*cur != '|') && (*cur != '\0'))
 			cur++;
-
 		if (beg != cur)
 		{
-
 			tmp = calloc((size_t)(cur - beg) + 1, sizeof(char));
 			assert(tmp);
 			memcpy(tmp, beg, (size_t)(cur - beg));
 			(*arr_p)[cur_arr++] = tmp;
+		
 			beg = cur;
 			cur++;
-
 		}
-
 		else if (*cur == '|')
 		{
-			//printf("i am here\n");
 			tmp = calloc(2, sizeof(char));
 			memcpy(tmp, beg, 1);
-			(*arr_p)[cur_arr++] = tmp;
+			(*arr_p)[cur_arr++] = tmp;		
 			cur++;
 			beg = cur;
 		}
@@ -148,13 +146,18 @@ int lexer(char* str, char*** arr_p)
 			break;
 		else if(*cur == '\0')
 			break;
-		
-
-		}
-
+	}
 	return cur_arr;
 }
 
+int lexer_clean(char** arr)
+{
+	size_t n_mal = malloc_usable_size(*arr);
+	for(size_t i = 0; i < n_mal; i++)
+		free(arr[i]);
+	free(arr);
+	return 0;
+}
 
 int main()
 {
@@ -164,32 +167,35 @@ int main()
 	while(1)
 	{
 		printf("user@linux:$ ");
-		///all information in buf
-
 		fgets(buf, BUF_SIZE, stdin);
-
 		ncomands = lexer(buf, &comands);
-
-		//printf("ncomands = %d\n", ncomands);
-	
 		for(int i = 0; i < ncomands; i++)
 		{
-			//printf("%s\n", comands[i]);
-
 			if(strcmp(comands[i], "exit") == 0)
+			{
+				lexer_clean(comands);
 				return 0;
-			
+			}		
 			if(comands[i] == NULL)
+			{
+				printf("failure\n");
 				return 0;
-			
+			}
 		}		
-		if(*comands && super_exec(comands, STDIN_FILENO, STDOUT_FILENO) == -1)
+		if(*comands)
 	       	{
-			perror("super_exec");
+			int tmp = super_exec(comands, STDIN_FILENO, STDOUT_FILENO);
+			if (tmp == -1)
+				perror("Wrong cmd");
+			if (tmp == -2)
+			{
+				lexer_clean(comands);
+				return 0;
+			}
 		}
-		
+		lexer_clean(comands);	
 	}	
-	
+	lexer_clean(comands);
 	return 0;
 }
 
