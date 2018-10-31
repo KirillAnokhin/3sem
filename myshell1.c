@@ -50,9 +50,10 @@ int fork_exec(char *argv[], int fd_in, int fd_out)
 
 int super_exec(char* argv[], int fd_in, int last_fd_out)
 {
+	//assert(*argv);
 	if (argv == NULL || *argv == NULL)
        	{
-		fprintf(stderr, "Wrong command\n");
+		fprintf(stderr, "Wrong command here\n");
 		return -1;
 	}
 	
@@ -79,13 +80,24 @@ int super_exec(char* argv[], int fd_in, int last_fd_out)
 	
 	/// We must disable stick to execute 
 	/// current argv correctly
-	*ptr = NULL;
+	free (*ptr);
+	*ptr = NULL; // leak
 	ptr++; // next argv
+	if (*ptr == NULL)
+	{
+		fprintf(stderr, "Wrong pipe syntax\n");
+		return -1;
+	}
 	int pipe_fd[2];
 	if (pipe(pipe_fd) == -1)
 		return -1;
 
 	/// execute this argv
+	if(*argv == NULL)
+	{
+		fprintf(stderr, "Wrong syntax\n");
+		return -1;
+	}
 	this_pid = fork_exec(argv, fd_in, pipe_fd[1]);
 	if (this_pid == -1)
        	{
@@ -152,22 +164,30 @@ int lexer(char* str, char*** arr_p)
 
 int lexer_clean(char** arr)
 {
-	size_t n_mal = malloc_usable_size(*arr);
+	size_t n_mal = malloc_usable_size(arr)/sizeof(char*);
 	for(size_t i = 0; i < n_mal; i++)
-		free(arr[i]);
+	{
+		if (arr[i] != NULL)
+			free(arr[i]);
+	}
 	free(arr);
 	return 0;
 }
 
 int main()
 {
-	char buf[BUF_SIZE] = {};
+	char buf[BUF_SIZE];
 	char** comands;
-	int ncomands = 0;
+	int ncomands;
 	while(1)
 	{
 		printf("user@linux:$ ");
 		fgets(buf, BUF_SIZE, stdin);
+		if(feof(stdin))
+		{
+			printf("EOF in stdin\n");
+			return 0;
+		}
 		ncomands = lexer(buf, &comands);
 		for(int i = 0; i < ncomands; i++)
 		{
@@ -181,18 +201,24 @@ int main()
 				printf("failure\n");
 				return 0;
 			}
-		}		
-		if(*comands)
-	       	{
-			int tmp = super_exec(comands, STDIN_FILENO, STDOUT_FILENO);
-			if (tmp == -1)
-				perror("Wrong cmd");
-			if (tmp == -2)
-			{
-				lexer_clean(comands);
-				return 0;
-			}
+		}	
+		if(ncomands == 0)
+			continue;	
+		//if(*comands)
+	       //	{
+		int tmp = super_exec(comands, STDIN_FILENO, STDOUT_FILENO);
+		if (tmp == -1)
+		{
+			//lexer_clean(comands);
+			perror("Wrong cmd");
 		}
+		else if (tmp == -2)
+		{
+			lexer_clean(comands);
+			return 0;
+		}
+					
+	//	}
 		lexer_clean(comands);	
 	}	
 	lexer_clean(comands);
