@@ -204,12 +204,10 @@ int main()
 		}	
 		if(ncomands == 0)
 			continue;	
-		//if(*comands)
-	       //	{
+
 		int tmp = super_exec(comands, STDIN_FILENO, STDOUT_FILENO);
 		if (tmp == -1)
 		{
-			//lexer_clean(comands);
 			perror("Wrong cmd");
 		}
 		else if (tmp == -2)
@@ -218,7 +216,6 @@ int main()
 			return 0;
 		}
 					
-	//	}
 		lexer_clean(comands);	
 	}	
 	lexer_clean(comands);
