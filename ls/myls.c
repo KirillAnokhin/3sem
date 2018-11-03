@@ -74,7 +74,7 @@ int handle_keys(int argc, char* argv[], char keys[], int* num_dir) {
 
 int handle_dir(int argc, char* argv[], char keys[]) {
 	int flag = 0;
-	int num_dir;
+	int num_dir = argc - 1;;
 	handle_keys(argc, argv, keys, &num_dir);
 	for(int i = 1; i < argc; i++) {
 		if(argv[i][0] != '-') {
