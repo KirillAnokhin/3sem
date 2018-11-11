@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -25,7 +26,7 @@ enum KEYS {
 
 int parse_keys_ex_dir(int argc, char* argv[], char keys[]);
 int display_dir(char* dname, char keys[]);
-int display_l_opt(struct dirent* entry, char* d_name, struct stat* sb);
+int display_l_n_opt(struct dirent* entry, char* d_name, struct stat* sb, char keys[]);
 char* getmod_str(unsigned int* mode);
 int handle_keys(int argc, char* argv[], char keys[], int* num_dir);
 int handle_dir(int argc, char* argv[], char keys[]);
@@ -33,12 +34,11 @@ int handle_dir(int argc, char* argv[], char keys[]);
 ////////
 
 int main(int argc, char* argv[]) {
+	
+	//printf("\x1b[32maaaaa\x1b[0m\n");	
 	char keys[NUM_KEYS] = {};
 	if(handle_dir(argc, argv, keys) == -1)
 		printf("Error\n");
-	for(int i = 0; i < NUM_KEYS; i++)
-		printf("%d[%d]\n", i, keys[i]);
-
 	return 0;
 }
 
@@ -46,27 +46,27 @@ int handle_keys(int argc, char* argv[], char keys[], int* num_dir) {
 	for(int i = 1; i < argc; i++) {
 		if(strcmp(argv[i], "-l") == 0) {
 			keys[L_KEY] = 1;
-			*num_dir--;
+			(*num_dir)--;
 		}
-		if(strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--numeric-uid-gid") == 0) {
+		else if(strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--numeric-uid-gid") == 0) {
 			keys[N_KEY] = 1;
-			*num_dir--;
+			(*num_dir)--;
 		}
-		if(strcmp(argv[i], "-i") == 0) {
+		else if(strcmp(argv[i], "-i") == 0) {
 			keys[I_KEY] = 1;
-			*num_dir--;
+			(*num_dir)--;
 		}
-		if(strcmp(argv[i], "-a") == 0) {
+		else if(strcmp(argv[i], "-a") == 0) {
 			keys[A_KEY] = 1;
-			*num_dir--;
+			(*num_dir)--;
 		}
-		if(strcmp(argv[i], "-R") == 0 || strcmp(argv[i], "--recursive") == 0) {
+		else if(strcmp(argv[i], "-R") == 0 || strcmp(argv[i], "--recursive") == 0) {
 			keys[R_KEY] = 1;
-			*num_dir--;
+			(*num_dir)--;
 		}
-		if(strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0) {
+		else if(strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0) {
 			keys[D_KEY] = 1;
-			*num_dir--;
+			(*num_dir)--;
 		}
 	}
 	return 0;
@@ -74,11 +74,11 @@ int handle_keys(int argc, char* argv[], char keys[], int* num_dir) {
 
 int handle_dir(int argc, char* argv[], char keys[]) {
 	int flag = 0;
-	int num_dir = argc - 1;;
+	int num_dir = argc - 1;
 	handle_keys(argc, argv, keys, &num_dir);
 	for(int i = 1; i < argc; i++) {
 		if(argv[i][0] != '-') {
-			printf("%s:\n", argv[i]);
+			//printf("%s:\n", argv[i]);
 			if(display_dir(argv[i], keys) == -1)
 				return -1;
 		}
@@ -99,44 +99,77 @@ int handle_dir(int argc, char* argv[], char keys[]) {
 
 int display_dir(char* dname, char keys[]) {
 	DIR* dir = opendir(dname);
-	struct dirent* entry;
-	struct stat sb;
-	int dflag = 0;
+	int fd;
 	if(!dir) {
 		perror("diropen failure");
 		return -1;
 	}
+	struct dirent* entry;
+	struct stat sb;
+	int dflag = 0;
 	while((entry = readdir(dir)) != NULL) {
-		if(fstatat(open(dname, 0), entry->d_name, &sb, 0) == -1) {		
+		fd = open(dname, 0);
+		if(fstatat(fd, entry->d_name, &sb, 0) == -1) {	
 			perror("stat failure");
 			return -1;
 		}
 
 		if((entry->d_name[0] == '.') && !keys[A_KEY])
-			continue;	
+		{
+			close(fd);
+			continue;
+		}	
 		if(keys[I_KEY])
 			printf("%7ld ", sb.st_ino);
-		if(keys[L_KEY]) {	
-			if(display_l_opt(entry, dname, &sb) == -1)
+		if(keys[L_KEY] && !keys[N_KEY]) {	
+			if(display_l_n_opt(entry, dname, &sb, keys) == -1)
 				return -1;
 		}
 		if(keys[N_KEY]) {
-			
+			if(display_l_n_opt(entry, dname, &sb, keys) == -1)
+				return -1;	
 		}
-
-		if(keys[D_KEY] && !dflag) {
-			printf("%7s \n", dname);
-			dflag = 1;
-			break;
-		}
-
 		printf("%10s\n", entry->d_name);
+		close(fd);
 	}
 
+	if (!keys[R_KEY])
+		return closedir(dir);
+
+	rewinddir(dir); 
+	while((entry = readdir(dir)) != NULL) {	
+		fd = open(dname, O_RDONLY);
+		if(fstatat(fd, entry->d_name, &sb, 0) == -1) {	
+			perror("stat failure");
+			return -1;
+		}
+			
+		if((entry->d_name[0] == '.') && !keys[A_KEY]) {
+			close(fd);
+			continue;	
+		}
+		if (S_ISDIR(sb.st_mode)) {	
+			if(strcmp(entry->d_name, ".")  == 0 || strcmp(entry->d_name, "..") == 0) {
+				close(fd);
+				continue;
+			}	
+			char* buf = NULL;
+			asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
+			printf("\n%s\n", buf);
+
+		       	display_dir(buf, keys);
+			free(buf);
+		}
+		else {
+			close(fd);
+			continue;
+		}
+		close(fd);
+	}		
 	return closedir(dir);
 }
 
-int display_l_opt(struct dirent* entry, char* dname, struct stat* sb) {
+int display_l_n_opt(struct dirent* entry, char* dname, struct stat* sb, char keys[]) {
 	struct passwd* uid = getpwuid(sb->st_uid);
 	struct group* gid = getgrgid(sb->st_uid);
 	char* uid_str;
@@ -147,7 +180,7 @@ int display_l_opt(struct dirent* entry, char* dname, struct stat* sb) {
 
 	printf("%10s", mod_str);	
 	
-	if(uid != NULL) {
+	if(uid != NULL && !keys[N_KEY]) {
 		uid_str = uid->pw_name;
 		printf("%10s", uid_str);
 	}
@@ -156,7 +189,7 @@ int display_l_opt(struct dirent* entry, char* dname, struct stat* sb) {
 		printf("%6u", sb->st_uid);
 	}
 
-	if(gid != NULL) {
+	if(gid != NULL && !keys[N_KEY]) {
 		gid_str = gid->gr_name;
 		printf("%10s", gid_str);
 	}
@@ -167,7 +200,7 @@ int display_l_opt(struct dirent* entry, char* dname, struct stat* sb) {
 
 	printf("%8ld ", sb->st_size);
 	printf("%12s ", data);
-
+	free(mod_str);
 	return 0;
 }
 
