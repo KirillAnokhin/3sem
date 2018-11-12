@@ -20,7 +20,6 @@ enum KEYS {
 	I_KEY,
 	A_KEY,
 	R_KEY,
-	D_KEY,
 	NUM_KEYS,
 };
 
@@ -64,10 +63,7 @@ int handle_keys(int argc, char* argv[], char keys[], int* num_dir) {
 			keys[R_KEY] = 1;
 			(*num_dir)--;
 		}
-		else if(strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0) {
-			keys[D_KEY] = 1;
-			(*num_dir)--;
-		}
+		
 	}
 	return 0;
 }
@@ -156,12 +152,12 @@ int display_dir(char* dname, char keys[]) {
 			char* buf = NULL;
 			asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
 			printf("\n%s\n", buf);
-
 		       	display_dir(buf, keys);
 			free(buf);
 		}
 		else {
 			close(fd);
+		
 			continue;
 		}
 		close(fd);
