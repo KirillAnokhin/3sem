@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <pwd.h>
 #include <grp.h>
+#include <getopt.h>
 
 ////////
 
@@ -24,15 +25,14 @@ struct keys {
 	int d;
 };
 
-int parse_keys_ex_dir(int argc, char* argv[], char keys[]);
 int display_dir(char* dname, struct keys* opts);
-int display_l_n_opt(struct dirent* entry, char* d_name, struct stat* sb, struct keys* opts);
+int display_l_n_opt(struct dirent* entry, char* d_name,
+	            struct stat* sb, struct keys* opts, int fd);
 char* getmod_str(unsigned int* mode);
-int handle_keys(int argc, char* argv[], char keys[], int* num_dir, struct keys* opts);
 int handle_dir(int argc, char* argv[], struct keys* opts);
 int handle_opts(int argc, char* argv[], struct keys* opts, int* num_dir);
-int crutch(int argc, char* argv[], int *num_dir);
-
+int counter(int argc, char* argv[], int *num_dir);
+int display_d_opt(char* dname, struct keys* opts); 
 ////////
 
 int main(int argc, char* argv[]) {
@@ -41,62 +41,54 @@ int main(int argc, char* argv[]) {
 
 	if(handle_dir(argc, argv, &opts) == -1)
 		printf("Error\n");
-
+	/*
+	printf("l = %d\n n = %d\n i = %d\n a = %d\n r = %d\n d = %d\n", 
+			opts.l, opts.n, opts.i, opts.a, opts.R, opts.d);
+	*/
 	return 0;
+}    
+
+#define macro(symb, field) \
+case (symb): { \
+	opts->field = 1;\
+	(*num_dir)--;\
+	break;\
 }
+
 
 int handle_opts(int argc, char* argv[], struct keys* opts, int* num_dir)
 {
-        int opt = 0;
-        while (opt != -1 ) {
-                opt = getopt(argc, argv, "alnRid");
+	static struct option long_options [] = {
+		{"long", no_argument, NULL, 'l'},
+		{"numeric-uid-gid", no_argument, NULL, 'n'},
+		{"inode", no_argument, NULL, 'i'},
+		{"all", no_argument, NULL, 'a'},
+		{"recursive", no_argument, NULL, 'R'},
+		{"directory", no_argument, NULL, 'd'},
+		{NULL, 0, NULL, 0},
+	};
+	int opt = 0;
+	int option_index;
+        while ((opt = getopt_long(argc, argv, "alnRid",
+		long_options, &option_index)) != -1 ) {
+
                 switch(opt) {
-                        case ('l'):
-			{
-                                opts->l = 1;
-				(*num_dir)--;
-                                break;
-                        }
-                        case ('n'):
-                        {
-                                opts->n = 1;
-				(*num_dir)--;
-				break;
-                        }
-                        case ('i'):
-                        {
-                                opts->i = 1;
-				(*num_dir)--;
-				break;
-                        }
-                        case ('a'):
-                        {
-                                opts->a = 1;
-				(*num_dir)--;
-				break;
-                        }
-                        case ('R'):
-                        {
-                                opts->R = 1;
-				(*num_dir)--;
-				break;
-                        }
-                        case ('d'):
-                        {
-                                opts->d = 1;
-				(*num_dir)--;
-				break;
-                        }
+			macro('l', l);
+			macro('n', n);
+			macro('i', i);
+			macro('a', a);
+			macro('R', R);
+			macro('d', d);
                 }
         }
 
 	return 0;
 }
 
-int crutch(int argc, char* argv[], int *num_dir)
-{
+int counter(int argc, char* argv[], int *num_dir) {
 	for(int i = 0; i < argc; i++)
-		if((argv[i][0] == '-') && strlen(argv[i]) > 2)
+		if((argv[i][0] == '-') && 
+		strlen(argv[i]) > 2 && (argv[i][1] != '-'))
 			(*num_dir) += (strlen(argv[i]) - 2);
 
 	return 0;
@@ -105,7 +97,7 @@ int crutch(int argc, char* argv[], int *num_dir)
 int handle_dir(int argc, char* argv[], struct keys* opts) {
 	int flag = 0;
 	int num_dir = argc - 1;
-	crutch(argc, argv, &num_dir);
+	counter(argc, argv, &num_dir);
 	handle_opts(argc, argv, opts, &num_dir);
 	
 	for(int i = 1; i < argc; i++) {
@@ -133,7 +125,32 @@ int handle_dir(int argc, char* argv[], struct keys* opts) {
 
 }
 
+int display_d_opt(char* dname, struct keys* opts) {
+	int fd;
+	struct stat sb;
+	struct dirent* entry;
+	if(stat(dname, &sb) == -1) {
+		perror("stat failure");
+		return -1;
+	}
+	if(opts->i)
+		printf("%7ld ", sb.st_ino);
+	if(opts->l && !(opts->n)) {	
+		if(display_l_n_opt(entry, dname, 
+		   &sb, opts, fd) == -1)
+			return -1;
+	}
+	if(opts->n) {
+		if(display_l_n_opt(entry, dname,
+	           &sb, opts, fd) == -1)
+			return -1;	
+	}
+	printf("%s\n", dname);
+	return 0;
+}
+
 int display_dir(char* dname, struct keys* opts) {
+
 	DIR* dir = opendir(dname);
 	int fd;
 	if(!dir) {
@@ -142,36 +159,43 @@ int display_dir(char* dname, struct keys* opts) {
 	}
 	struct dirent* entry;
 	struct stat sb;
-	int dflag = 0;
+	if(opts->d){
+		display_d_opt(dname, opts);
+		return closedir(dir);
+	}
 	while((entry = readdir(dir)) != NULL) {
 		fd = open(dname, 0);
 		if(fstatat(fd, entry->d_name, &sb, 0) == -1) {	
 			perror("stat failure");
 			return -1;
 		}
-		/*
-		if(S_ISLNK())
-			close(fd);
-		*/
+		close(fd);
+
 		if((entry->d_name[0] == '.') && !(opts->a))
 			continue;
 		if(opts->i)
 			printf("%7ld ", sb.st_ino);
 		if(opts->l && !(opts->n)) {	
-			if(display_l_n_opt(entry, dname, &sb, opts) == -1)
+			if(display_l_n_opt(entry, dname,
+		           &sb, opts, fd) == -1)
 				return -1;
 		}
 		if(opts->n) {
-			if(display_l_n_opt(entry, dname, &sb, opts) == -1)
+			if(display_l_n_opt(entry, dname,
+		           &sb, opts, fd) == -1)
 				return -1;	
 		}
+
 		printf("%10s\n", entry->d_name);
 	}
 
 	if (!(opts->R))
 		return closedir(dir);
 
+	//if there is r-key
+	
 	rewinddir(dir); 
+
 	while((entry = readdir(dir)) != NULL) {	
 		fd = open(dname, O_RDONLY);
 		if(fstatat(fd, entry->d_name, &sb, 0) == -1) {	
@@ -182,7 +206,8 @@ int display_dir(char* dname, struct keys* opts) {
 		if((entry->d_name[0] == '.') && !(opts->a))
 			continue;	
 		if (S_ISDIR(sb.st_mode)) {	
-			if(strcmp(entry->d_name, ".")  == 0 || strcmp(entry->d_name, "..") == 0) 
+			if(strcmp(entry->d_name, ".")  == 0 
+			   || strcmp(entry->d_name, "..") == 0) 
 				continue;
 			
 			char* buf = NULL;
@@ -197,13 +222,16 @@ int display_dir(char* dname, struct keys* opts) {
 	return closedir(dir);
 }
 
-int display_l_n_opt(struct dirent* entry, char* dname, struct stat* sb, struct keys* opts) {
+int display_l_n_opt(struct dirent* entry, char* dname, struct stat* sb,
+	            struct keys* opts, int fd) {
+
 	struct passwd* uid = getpwuid(sb->st_uid);
 	struct group* gid = getgrgid(sb->st_uid);
 	char* uid_str;
 	char* gid_str; 
 	char* mod_str = getmod_str(&sb->st_mode);
 	char* data = ctime(&sb->st_mtime);
+
 	data[strlen(data) - 1] = 0;
 
 	printf("%10s", mod_str);	
@@ -232,52 +260,24 @@ int display_l_n_opt(struct dirent* entry, char* dname, struct stat* sb, struct k
 	return 0;
 }
 
+#define def(num1, num2, num3) \
+	if (*mode & num1) \
+		mod_str[num2] = num3; \
+	else \
+		mod_str[num2] = '-';	
+
 char* getmod_str(unsigned int* mode){
 	char* mod_str = calloc(12, sizeof(char));
-	if(*mode & 1)
-		mod_str[9] = 'x';
-	else	
-		mod_str[9] = '-';
 
-	if(*mode & 2) 
-		mod_str[8] = 'w';
-	else
-		mod_str[8] = '-';
-
-	if(*mode & 4)
-		mod_str[7] = 'r';
-	else
-		mod_str[7] = '-';
-
-	if(*mode & 8)
-		mod_str[6] = 'x';
-	else
-		mod_str[6] = '-';
-
-	if(*mode & 16)
-		mod_str[5] = 'w';
-	else
-		mod_str[5] = '-';
-
-	if(*mode & 32)
-		mod_str[4] = 'r';
-	else
-		mod_str[4] = '-';
-		
-	if(*mode & 64)
-		mod_str[3] = 'x';
-	else
-		mod_str[3] = '-';
-
-	if(*mode & 128)
-		mod_str[2] = 'w';
-	else
-		mod_str[2] = '-';
-
-	if(*mode & 256)
-		mod_str[1] = 'r';
-	else
-		mod_str[1] = '-';
+	def(1, 9, 'x');
+	def(2, 8, 'w');
+	def(4, 7, 'r');
+	def(8, 6, 'x');
+	def(16, 5, 'w');
+	def(32, 4, 'r');
+	def(64, 3, 'x');
+	def(128, 2, 'w');
+	def(256, 1, 'r');
 
 	if (S_ISREG(*mode))
 		mod_str[0] = '-';
