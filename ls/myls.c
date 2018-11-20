@@ -109,7 +109,6 @@ int handle_dir(int argc, char* argv[], struct keys* opts)
 			return -1;
 	}
 	return 0;
-
 }
 
 int display_d_opt(char* dname, struct keys* opts)
