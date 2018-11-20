@@ -27,7 +27,7 @@ struct keys {
 
 int display_dir(char* dname, struct keys* opts);
 int display_l_n_opt(struct dirent* entry, char* d_name,
-	            struct stat* sb, struct keys* opts, int fd);
+	            struct stat* sb, struct keys* opts);
 char* getmod_str(unsigned int* mode);
 int handle_dir(int argc, char* argv[], struct keys* opts);
 int handle_opts(int argc, char* argv[], struct keys* opts, int* num_dir);
@@ -41,10 +41,6 @@ int main(int argc, char* argv[]) {
 
 	if(handle_dir(argc, argv, &opts) == -1)
 		printf("Error\n");
-	/*
-	printf("l = %d\n n = %d\n i = %d\n a = %d\n r = %d\n d = %d\n", 
-			opts.l, opts.n, opts.i, opts.a, opts.R, opts.d);
-	*/
 	return 0;
 }    
 
@@ -137,12 +133,12 @@ int display_d_opt(char* dname, struct keys* opts) {
 		printf("%7ld ", sb.st_ino);
 	if(opts->l && !(opts->n)) {	
 		if(display_l_n_opt(entry, dname, 
-		   &sb, opts, fd) == -1)
+		   &sb, opts) == -1)
 			return -1;
 	}
 	if(opts->n) {
 		if(display_l_n_opt(entry, dname,
-	           &sb, opts, fd) == -1)
+	           &sb, opts) == -1)
 			return -1;	
 	}
 	printf("%s\n", dname);
@@ -169,8 +165,6 @@ int display_dir(char* dname, struct keys* opts) {
 
 		char* buf = NULL;
 		asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
-
-		//if(fstatat(fd, entry->d_name, &sb, 0) == -1) {	
 		if(lstat(buf, &sb) == -1) {
 			perror("stat failure");
 			return -1;
@@ -181,24 +175,16 @@ int display_dir(char* dname, struct keys* opts) {
 			continue;
 		if(opts->i)
 			printf("%7ld ", sb.st_ino);
-		if(opts->l && !(opts->n)) {	
+		if(opts->l  || opts->n) {	
 			if(display_l_n_opt(entry, dname,
-		           &sb, opts, fd) == -1)
+		           &sb, opts) == -1)
 				return -1;
 		}
-		if(opts->n) {
-			if(display_l_n_opt(entry, dname,
-		           &sb, opts, fd) == -1)
-				return -1;	
-		}
-
 		printf("%10s ", entry->d_name);
 		char link_path[256] = {};
 		if((opts->l || opts-> n) && S_ISLNK(sb.st_mode)) {
-			asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
-			readlink(buf, link_path, 256);
+			readlink(entry->d_name, link_path, 256);
 			printf("->%s\n", link_path);
-			free(buf);
 		}
 		printf("\n");
 	}
@@ -237,7 +223,7 @@ int display_dir(char* dname, struct keys* opts) {
 }
 
 int display_l_n_opt(struct dirent* entry, char* dname, struct stat* sb,
-	            struct keys* opts, int fd) {
+	            struct keys* opts) {
 
 	struct passwd* uid = getpwuid(sb->st_uid);
 	struct group* gid = getgrgid(sb->st_uid);
