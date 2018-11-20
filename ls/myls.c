@@ -158,19 +158,25 @@ int display_dir(char* dname, struct keys* opts) {
 		return -1;
 	}
 	struct dirent* entry;
+	
 	struct stat sb;
 	if(opts->d){
 		display_d_opt(dname, opts);
 		return closedir(dir);
 	}
 	while((entry = readdir(dir)) != NULL) {
-		fd = open(dname, 0);
-		if(fstatat(fd, entry->d_name, &sb, 0) == -1) {	
+		fd = open(dname, 0); 
+
+		char* buf = NULL;
+		asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
+
+		//if(fstatat(fd, entry->d_name, &sb, 0) == -1) {	
+		if(lstat(buf, &sb) == -1) {
 			perror("stat failure");
 			return -1;
 		}
 		close(fd);
-
+		free(buf);	
 		if((entry->d_name[0] == '.') && !(opts->a))
 			continue;
 		if(opts->i)
@@ -186,7 +192,15 @@ int display_dir(char* dname, struct keys* opts) {
 				return -1;	
 		}
 
-		printf("%10s\n", entry->d_name);
+		printf("%10s ", entry->d_name);
+		char link_path[256] = {};
+		if((opts->l || opts-> n) && S_ISLNK(sb.st_mode)) {
+			asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
+			readlink(buf, link_path, 256);
+			printf("->%s\n", link_path);
+			free(buf);
+		}
+		printf("\n");
 	}
 
 	if (!(opts->R))
@@ -218,7 +232,7 @@ int display_dir(char* dname, struct keys* opts) {
 		}
 		else 
 			continue;
-	}		
+	}	
 	return closedir(dir);
 }
 
