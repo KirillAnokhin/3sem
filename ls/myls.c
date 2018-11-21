@@ -29,8 +29,7 @@ int display_l_n_opt(struct dirent *entry, char *d_name,
 		    struct stat *sb, struct keys *opts);
 char *getmod_str(unsigned int *mode);
 int handle_dir(int argc, char *argv[], struct keys *opts);
-int handle_opts(int argc, char *argv[], struct keys *opts, int *num_dir);
-int counter(int argc, char *argv[], int *num_dir);
+int handle_opts(int argc, char *argv[], struct keys *opts);
 int display_d_opt(char *dname, struct keys *opts);
 
 ////////
@@ -46,11 +45,10 @@ int main(int argc, char *argv[])
 #define macro(symb, field) \
 case (symb): { \
 opts->field = 1;\
-(*num_dir)--;\
 break;\
 }
 
-int handle_opts(int argc, char *argv[], struct keys *opts, int *num_dir)
+int handle_opts(int argc, char *argv[], struct keys *opts)
 {
 	static struct option long_options[] = {
 		{"long", no_argument, NULL, 'l'},
@@ -63,6 +61,7 @@ int handle_opts(int argc, char *argv[], struct keys *opts, int *num_dir)
 	};
 	int opt = 0;
 	int option_index;
+	optind = 1;
 	while ((opt = getopt_long(argc, argv, "alnRid",
 				  long_options, &option_index)) != -1) {
 		switch (opt) {
@@ -74,38 +73,21 @@ int handle_opts(int argc, char *argv[], struct keys *opts, int *num_dir)
 			macro('d', d);
 		}
 	}
-	return 0;
-}
-
-int counter(int argc, char *argv[], int *num_dir)
-{
-	for (int i = 0; i < argc; i++)
-		if ((argv[i][0] == '-') &&
-		    strlen(argv[i]) > 2 && (argv[i][1] != '-'))
-			(*num_dir) += (strlen(argv[i]) - 2);
-	return 0;
+	return optind;
 }
 
 int handle_dir(int argc, char *argv[], struct keys *opts)
 {
-	int flag = 0;
-	int num_dir = argc - 1;
-	counter(argc, argv, &num_dir);
-	handle_opts(argc, argv, opts, &num_dir);
-	for (int i = 1; i < argc; i++) {
-		if (argv[i][0] != '-') {
-			if (display_dir(argv[i], opts) == -1)
-				return -1;
-		}
-		if (num_dir == 0) {
-			flag = 1;
-			if (display_dir(".", opts) == -1)
-				return -1;
-			break;
-		}
+	optind = handle_opts(argc, argv, opts);
+
+	if(optind == argc) {
+		printf(".\n");
+		if(display_dir(".", opts) == -1)
+			return -1;
 	}
-	if (num_dir == 0 && flag != 1) {
-		if (display_dir(".", opts) == -1)
+	for(int i = optind; i < argc; i++) {
+		printf("%s\n", argv[i]);
+		if(display_dir(argv[i], opts) == -1)
 			return -1;
 	}
 	return 0;
@@ -170,7 +152,7 @@ int display_dir(char *dname, struct keys *opts)
 		char link_path[256] = { };
 		if ((opts->l || opts->n) && S_ISLNK(sb.st_mode)) {
 			readlink(entry->d_name, link_path, 256);
-			printf("->%s\n", link_path);
+			printf("-> %s\n", link_path);
 		}
 		printf("\n");
 	}
@@ -213,6 +195,7 @@ int display_l_n_opt(struct dirent *entry, char *dname, struct stat *sb,
 	char *data = ctime(&sb->st_mtime);
 	data[strlen(data) - 1] = 0;
 	printf("%10s", mod_str);
+	printf("%2d", sb->st_nlink);
 	if (uid != NULL && !(opts->n)) {
 		uid_str = uid->pw_name;
 		printf("%10s", uid_str);
@@ -234,10 +217,11 @@ int display_l_n_opt(struct dirent *entry, char *dname, struct stat *sb,
 }
 
 #define def(num1, num2, num3) \
-	if (*mode & num1) \
-		mod_str[num2] = num3; \
-	else \
-		mod_str[num2] = '-';
+if (*mode & num1) \
+mod_str[num2] = num3; \
+else \
+mod_str[num2] = '-';
+
 char *getmod_str(unsigned int *mode)
 {
 	char *mod_str = calloc(12, sizeof(char));
