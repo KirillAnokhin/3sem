@@ -86,7 +86,6 @@ int handle_dir(int argc, char *argv[], struct keys *opts)
 			return -1;
 	}
 	for(int i = optind; i < argc; i++) {
-		printf("%s\n", argv[i]);
 		if(display_dir(argv[i], opts) == -1)
 			return -1;
 	}
@@ -104,11 +103,7 @@ int display_d_opt(char *dname, struct keys *opts)
 	}
 	if (opts->i)
 		printf("%7ld ", sb.st_ino);
-	if (opts->l && !(opts->n)) {
-		if (display_l_n_opt(entry, dname, &sb, opts) == -1)
-			return -1;
-	}
-	if (opts->n) {
+	if (opts->l || opts->n) {
 		if (display_l_n_opt(entry, dname, &sb, opts) == -1)
 			return -1;
 	}
@@ -119,26 +114,37 @@ int display_d_opt(char *dname, struct keys *opts)
 int display_dir(char *dname, struct keys *opts)
 {
 	DIR *dir = opendir(dname);
-	int fd;
-	if (!dir) {
-		perror("diropen failure");
-		return -1;
-	}
 	struct dirent *entry;
 	struct stat sb;
+	//not directory
+	
+	if(dir == NULL) {
+		dir = opendir(".");
+		while((entry = readdir(dir)) != NULL) {
+			if(!strcmp(entry->d_name, dname)) {
+				display_d_opt(entry->d_name, opts);
+				closedir(dir);
+				return 0;
+			} else {
+				perror("diropen failure");
+				closedir(dir);
+				return -1;
+			}
+		}
+	}
+	
 	if (opts->d) {
 		display_d_opt(dname, opts);
 		return closedir(dir);
 	}
+
 	while ((entry = readdir(dir)) != NULL) {
-		fd = open(dname, 0);
 		char *buf = NULL;
 		asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
 		if (lstat(buf, &sb) == -1) {
 			perror("stat failure");
 			return -1;
 		}
-		close(fd);
 		free(buf);
 		if ((entry->d_name[0] == '.') && !(opts->a))
 			continue;
@@ -156,24 +162,31 @@ int display_dir(char *dname, struct keys *opts)
 		}
 		printf("\n");
 	}
+
 	if (!(opts->R))
 		return closedir(dir);
 	//if there is r-key
 	rewinddir(dir);
+	int fd;
 	while ((entry = readdir(dir)) != NULL) {
 		fd = open(dname, O_RDONLY);
 		if (fstatat(fd, entry->d_name, &sb, 0) == -1) {
 			perror("stat failure");
 			return -1;
 		}
-		close(fd);
-		if ((entry->d_name[0] == '.') && !(opts->a))
-			continue;
-		if (S_ISDIR(sb.st_mode)) {
-			if (strcmp(entry->d_name, ".") == 0
-			    || strcmp(entry->d_name, "..") == 0)
-				continue;
 
+		close(fd);
+
+		if (((entry->d_name[0] != '.') || (opts->a))
+		    && S_ISDIR(sb.st_mode) 
+		    && strcmp(entry->d_name, ".") 
+		    && strcmp(entry->d_name, "..")) {
+		/*
+		if(((entry->d_name[0] != '.') && S_ISDIR(sb.st_mode))
+		   || (opts->a) 
+		   && strcmp(entry->d_name, ".") 
+		   && strcmp(entry->d_name, "..")){
+		*/
 			char *buf = NULL;
 			asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
 			printf("\n%s\n", buf);
@@ -184,8 +197,8 @@ int display_dir(char *dname, struct keys *opts)
 	return closedir(dir);
 }
 
-int display_l_n_opt(struct dirent *entry, char *dname, struct stat *sb,
-		    struct keys *opts)
+int display_l_n_opt(struct dirent *entry, char *dname,
+	            struct stat *sb, struct keys *opts)
 {
 	struct passwd *uid = getpwuid(sb->st_uid);
 	struct group *gid = getgrgid(sb->st_uid);
