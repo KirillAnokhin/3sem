@@ -125,12 +125,11 @@ int display_dir(char *dname, struct keys *opts)
 				display_d_opt(entry->d_name, opts);
 				closedir(dir);
 				return 0;
-			} else {
-				perror("diropen failure");
-				closedir(dir);
-				return -1;
-			}
+			}	
 		}
+		perror("diropen failure");
+		closedir(dir);
+		return -1;
 	}
 	
 	if (opts->d) {
