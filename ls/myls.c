@@ -181,12 +181,6 @@ int display_dir(char *dname, struct keys *opts)
 		    && S_ISDIR(sb.st_mode) 
 		    && strcmp(entry->d_name, ".") 
 		    && strcmp(entry->d_name, "..")) {
-		/*
-		if(((entry->d_name[0] != '.') && S_ISDIR(sb.st_mode))
-		   || (opts->a) 
-		   && strcmp(entry->d_name, ".") 
-		   && strcmp(entry->d_name, "..")){
-		*/
 			char *buf = NULL;
 			asprintf(&buf, "%s%s%s", dname, "/", entry->d_name);
 			printf("\n%s\n", buf);
