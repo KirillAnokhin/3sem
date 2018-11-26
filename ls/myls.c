@@ -61,7 +61,6 @@ int handle_opts(int argc, char *argv[], struct keys *opts)
 	};
 	int opt = 0;
 	int option_index;
-	optind = 1;
 	while ((opt = getopt_long(argc, argv, "alnRid",
 				  long_options, &option_index)) != -1) {
 		switch (opt) {
@@ -78,7 +77,7 @@ int handle_opts(int argc, char *argv[], struct keys *opts)
 
 int handle_dir(int argc, char *argv[], struct keys *opts)
 {
-	optind = handle_opts(argc, argv, opts);
+	handle_opts(argc, argv, opts);
 
 	if(optind == argc) {
 		printf(".\n");
@@ -119,6 +118,7 @@ int display_dir(char *dname, struct keys *opts)
 	//not directory
 	
 	if(dir == NULL) {
+		//if()
 		dir = opendir(".");
 		while((entry = readdir(dir)) != NULL) {
 			if(!strcmp(entry->d_name, dname)) {
