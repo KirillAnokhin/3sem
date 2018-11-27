@@ -14,44 +14,56 @@ struct mymsg{
 	long type;
 };
 
-int runs_action(int msqid, int i)
+#define macro(do_smth) \
+do { \
+printf("can't " #do_smth  " message\n"); \
+msgctl(msqid, IPC_RMID, NULL); \
+return -1;\
+} while(0)
+
+int runs_action(int msqid, int i, int n)
 {
 	mymsg stop;
 	stop.type = i + 1;
-	mymsg start;	
-	if(msgrcv(msqid, (mymsg *) &start, 0, i, 0) == -1) {
-		printf("can't receive message\n");
-		msgctl(msqid, IPC_RMID, NULL);
-		return -1;
-	}
+	mymsg isready;
+	isready.type = n + 2;
+	mymsg start;
+
+	printf("%d there\n", i);
+	if(msgsnd(msqid, (mymsg *) &isready, 0 ,0) < 0) 
+		macro(send);
+		
+	if(msgrcv(msqid, (mymsg *) &start, 0, i, 0) == -1) 
+		macro(recieve);
+
 	printf("%d runner start\n", i);
 	printf("%d runner end\n", i);
-	if(msgsnd(msqid, (mymsg *) &stop, 0, 0) < 0) {
-		printf("can't send message\n");
-		msgctl(msqid, IPC_RMID, NULL);
-		return -1;
-	}
+	if(msgsnd(msqid, (mymsg *) &stop, 0, 0) < 0) 
+		macro(send);
+	
 	return 0;
 }
 
 int judge_action(int msqid, int n)
 {
 	mymsg begin;
+	mymsg ready;
 	begin.type = 1;
 	struct timeval t1;
 	struct timeval t2;
-	gettimeofday(&t1, NULL);
+	for(int i = 0; i < n; i++) {
+		if(msgrcv(msqid, (mymsg *) &ready, 0, n + 2, 0) == -1) 
+			macro(recieve);
+	}
+
 	printf("begin\n");	
-	if(msgsnd(msqid, (mymsg *) &begin, 0, 0) < 0) {
-		printf("can't send message\n");
-		msgctl(msqid, IPC_RMID, NULL);
-		return -1;
-	}
-	if(msgrcv(msqid, (mymsg *) &begin, 0, n + 1, 0) == -1) {
-		printf("can't receive message\n");
-		msgctl(msqid, IPC_RMID, NULL);
-		return -1;
-	}
+	if(msgsnd(msqid, (mymsg *) &begin, 0, 0) < 0) 
+		macro(send);
+
+	gettimeofday(&t1, NULL);
+	if(msgrcv(msqid, (mymsg *) &begin, 0, n + 1, 0) == -1) 
+		macro(receive);
+
 	gettimeofday(&t2, NULL);
 	printf("total time %ld\n", t2.tv_usec - t1.tv_usec);
 	return 0;
@@ -90,7 +102,7 @@ int main(int argc, char* argv[]) {
 	}
 		
 	if(!pid) {
-		if(runs_action(msqid, i) == -1) {
+		if(runs_action(msqid, i, n_runners) == -1) {
 			printf("runs_action error\n");
 			return -1;
 		}
