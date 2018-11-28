@@ -78,14 +78,14 @@ int handle_opts(int argc, char *argv[], struct keys *opts)
 int handle_dir(int argc, char *argv[], struct keys *opts)
 {
 	handle_opts(argc, argv, opts);
-
 	if(optind == argc) {
 		printf(".\n");
 		if(display_dir(".", opts) == -1)
 			return -1;
 	}
 	for(int i = optind; i < argc; i++) {
-		printf("%s:\n", argv[i]);
+		if((argc - optind) > 1)
+			printf("%s:\n", argv[i]);
 		if(display_dir(argv[i], opts) == -1)
 			return -1;
 	}
@@ -127,13 +127,14 @@ int display_dir(char *dname, struct keys *opts)
 	DIR *dir = opendir(dname);
 	struct dirent *entry;
 	struct stat sb;
-	//not directory
 	int flag = 0;
-	int res = 0;
+	int n_way = 0; //counter for . and /
 
+	//if not directory
 	if(dir == NULL) {
 		int len = strlen(dname);
 		char* newname = strdup(dname);
+	       	//making path to open dir
 		for(int i = len; i > 0; i--) {
 			if(newname[i] == '/') {
 				newname[i] = '\0';
@@ -147,16 +148,18 @@ int display_dir(char *dname, struct keys *opts)
 			}
 		}
 		free(newname);	
-		int count = 0;
-		int k = strlen(dname);
-		for(int i = strlen(dname); dname[i - 1] != '/'; i--) {
-			++count;
+
+		int n_words = 0; // counter for name without . and /
+		int n_symb = strlen(dname); // counter for all name
+		for(int i = n_symb; dname[i - 1] != '/'; i--) {
+			++n_words;
 		}
-		res = k - count;
+
+		n_way = n_symb - n_words; 
 
 		while((entry = readdir(dir)) != NULL) {
-			if(!strcmp(entry->d_name, dname + res)) {
-				display_d_opt(dname, opts, flag, res);
+			if(!strcmp(entry->d_name, dname + n_way)) {
+				display_d_opt(dname, opts, flag, n_way);
 				closedir(dir);
 				return 0;
 			}	
@@ -167,7 +170,7 @@ int display_dir(char *dname, struct keys *opts)
 	}
 	
 	if (opts->d) {
-		display_d_opt(dname, opts, flag, res);
+		display_d_opt(dname, opts, flag, n_way);
 		return closedir(dir);
 	}
 
