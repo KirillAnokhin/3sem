@@ -97,7 +97,7 @@ int display_d_opt(char *dname, struct keys *opts, int flag, int res)
 	int fd;
 	struct stat sb;
 	struct dirent *entry;
-	if (stat(dname, &sb) == -1) {
+	if (lstat(dname, &sb) == -1) {
 		perror("stat failure");
 		return -1;
 	}
@@ -112,7 +112,13 @@ int display_d_opt(char *dname, struct keys *opts, int flag, int res)
 		if (display_l_n_opt(entry, dname, &sb, opts) == -1)
 			return -1;
 	}
-	printf("%s\n", dname);
+	printf("%s ", dname);
+	char link_path[256] = { };
+	if ((opts->l || opts->n) && S_ISLNK(sb.st_mode)) {
+		readlink(dname, link_path, 256);
+		printf("-> %s\n", link_path);
+	}
+	printf("\n");
 	return 0;
 }
 
