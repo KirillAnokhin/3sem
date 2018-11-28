@@ -30,7 +30,7 @@ int display_l_n_opt(struct dirent *entry, char *d_name,
 char *getmod_str(unsigned int *mode);
 int handle_dir(int argc, char *argv[], struct keys *opts);
 int handle_opts(int argc, char *argv[], struct keys *opts);
-int display_d_opt(char *dname, struct keys *opts);
+int display_d_opt(char *dname, struct keys *opts, int flag, int res);
 
 ////////
 
@@ -85,13 +85,14 @@ int handle_dir(int argc, char *argv[], struct keys *opts)
 			return -1;
 	}
 	for(int i = optind; i < argc; i++) {
+		printf("%s:\n", argv[i]);
 		if(display_dir(argv[i], opts) == -1)
 			return -1;
 	}
 	return 0;
 }
 
-int display_d_opt(char *dname, struct keys *opts)
+int display_d_opt(char *dname, struct keys *opts, int flag, int res)
 {
 	int fd;
 	struct stat sb;
@@ -100,6 +101,11 @@ int display_d_opt(char *dname, struct keys *opts)
 		perror("stat failure");
 		return -1;
 	}
+	
+	if(flag == 1 && !strcmp(entry->d_name, dname + res)) {
+		return 0;
+	}
+
 	if (opts->i)
 		printf("%7ld ", sb.st_ino);
 	if (opts->l || opts->n) {
@@ -116,13 +122,35 @@ int display_dir(char *dname, struct keys *opts)
 	struct dirent *entry;
 	struct stat sb;
 	//not directory
-	
+	int flag = 0;
+	int res = 0;
+
 	if(dir == NULL) {
-		//if()
-		dir = opendir(".");
+		int len = strlen(dname);
+		char* newname = strdup(dname);
+		for(int i = len; i > 0; i--) {
+			if(newname[i] == '/') {
+				newname[i] = '\0';
+				dir = opendir(newname);
+				newname[i] = '/';
+				break;
+			}
+			if(i == 1) {
+				dir = opendir(".");
+				break;
+			}
+		}
+		free(newname);	
+		int count = 0;
+		int k = strlen(dname);
+		for(int i = strlen(dname); dname[i - 1] != '/'; i--) {
+			++count;
+		}
+		res = k - count;
+
 		while((entry = readdir(dir)) != NULL) {
-			if(!strcmp(entry->d_name, dname)) {
-				display_d_opt(entry->d_name, opts);
+			if(!strcmp(entry->d_name, dname + res)) {
+				display_d_opt(dname, opts, flag, res);
 				closedir(dir);
 				return 0;
 			}	
@@ -133,7 +161,7 @@ int display_dir(char *dname, struct keys *opts)
 	}
 	
 	if (opts->d) {
-		display_d_opt(dname, opts);
+		display_d_opt(dname, opts, flag, res);
 		return closedir(dir);
 	}
 
@@ -148,7 +176,7 @@ int display_dir(char *dname, struct keys *opts)
 		if ((entry->d_name[0] == '.') && !(opts->a))
 			continue;
 		if (opts->i)
-			printf("%7ld ", sb.st_ino);
+			printf("%ld \t", sb.st_ino);
 		if (opts->l || opts->n) {
 			if (display_l_n_opt(entry, dname, &sb, opts) == -1)
 				return -1;
@@ -200,24 +228,24 @@ int display_l_n_opt(struct dirent *entry, char *dname,
 	char *mod_str = getmod_str(&sb->st_mode);
 	char *data = ctime(&sb->st_mtime);
 	data[strlen(data) - 1] = 0;
-	printf("%10s", mod_str);
-	printf("%2d", sb->st_nlink);
+	printf("%s \t", mod_str);
+	printf("%d \t", sb->st_nlink);
 	if (uid != NULL && !(opts->n)) {
 		uid_str = uid->pw_name;
-		printf("%10s", uid_str);
+		printf("%s \t", uid_str);
 	} else {
 		uid_str = NULL;
-		printf("%6u", sb->st_uid);
+		printf("%u \t", sb->st_uid);
 	}
 	if (gid != NULL && !(opts->n)) {
 		gid_str = gid->gr_name;
-		printf("%10s", gid_str);
+		printf("%s \t", gid_str);
 	} else {
 		gid_str = NULL;
-		printf("%6u", sb->st_gid);
+		printf("%u \t", sb->st_gid);
 	}
-	printf("%8ld ", sb->st_size);
-	printf("%12s ", data);
+	printf("%ld \t", sb->st_size);
+	printf("%s \t", data);
 	free(mod_str);
 	return 0;
 }
