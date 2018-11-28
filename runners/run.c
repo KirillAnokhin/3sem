@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <ctype.h>
 
 /////======================
 
@@ -69,13 +70,26 @@ int judge_action(int msqid, int n)
 	return 0;
 }
 
+int check_arg(char* arg)
+{
+	int n_runs;
+	if(!isdigit(*arg))
+		return -1;
+	n_runs = atoi(arg);
+	return n_runs;
+}
+
 int main(int argc, char* argv[]) {
 	if(argc != 2) {
 		printf("Expected one argument\n");
 		return -1;
+	}	
+	int n_runners = 0;
+	if((n_runners = check_arg(argv[1])) == -1) {
+		printf("invalid argument\n");
+		return -1;
 	}
-
-	int n_runners = atoi(argv[1]);
+	printf("%d\n", n_runners);
 	char pathname[] = "run.c";
 	key_t key;
 	if((key = ftok(pathname, 0)) < 0) {
