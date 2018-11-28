@@ -30,7 +30,7 @@ int display_l_n_opt(struct dirent *entry, char *d_name,
 char *getmod_str(unsigned int *mode);
 int handle_dir(int argc, char *argv[], struct keys *opts);
 int handle_opts(int argc, char *argv[], struct keys *opts);
-int display_d_opt(char *dname, struct keys *opts, int flag, int res);
+int display_d_opt(char *dname, struct keys *opts, int n_way);
 
 ////////
 
@@ -92,7 +92,7 @@ int handle_dir(int argc, char *argv[], struct keys *opts)
 	return 0;
 }
 
-int display_d_opt(char *dname, struct keys *opts, int flag, int res)
+int display_d_opt(char *dname, struct keys *opts, int n_way)
 {
 	int fd;
 	struct stat sb;
@@ -102,7 +102,7 @@ int display_d_opt(char *dname, struct keys *opts, int flag, int res)
 		return -1;
 	}
 	
-	if(flag == 1 && !strcmp(entry->d_name, dname + res)) {
+	if(!strcmp(entry->d_name, dname + n_way)) {
 		return 0;
 	}
 
@@ -127,7 +127,6 @@ int display_dir(char *dname, struct keys *opts)
 	DIR *dir = opendir(dname);
 	struct dirent *entry;
 	struct stat sb;
-	int flag = 0;
 	int n_way = 0; //counter for . and /
 
 	//if not directory
@@ -159,7 +158,7 @@ int display_dir(char *dname, struct keys *opts)
 
 		while((entry = readdir(dir)) != NULL) {
 			if(!strcmp(entry->d_name, dname + n_way)) {
-				display_d_opt(dname, opts, flag, n_way);
+				display_d_opt(dname, opts, n_way);
 				closedir(dir);
 				return 0;
 			}	
@@ -170,7 +169,7 @@ int display_dir(char *dname, struct keys *opts)
 	}
 	
 	if (opts->d) {
-		display_d_opt(dname, opts, flag, n_way);
+		display_d_opt(dname, opts, n_way);
 		return closedir(dir);
 	}
 
