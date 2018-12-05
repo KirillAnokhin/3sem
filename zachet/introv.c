@@ -31,13 +31,13 @@ int main()
 	key_t key;
 	int semid;
 	char pathname[] = "introv.c";
-	struct sembuf sops[1];
+	struct sembuf sops[2];
 	size_t n_sops = 0;
 
 	key = ftok(pathname, 0);
 	semid = semget(key, 1, 0666 | IPC_CREAT);
 
-	ADD_SOP(0, 1, SEM_UNDO);
+	ADD_SOP(0, 1, SEM_UNDO); //из семафора вычитается значение счетчика
 	if (START_SOP() == -1) {
 		perror("semop");
 		return 0;
