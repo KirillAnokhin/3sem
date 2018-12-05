@@ -60,7 +60,7 @@ int main()
 		sleep(1);
 	}
 
-	ADD_SOP(0, 1, SEM_UNDO);
+	ADD_SOP(0, -1, SEM_UNDO);
 	if (START_SOP() == -1) {
 		perror("semop");
 		return 0;
